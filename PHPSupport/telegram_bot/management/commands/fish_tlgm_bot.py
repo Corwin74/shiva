@@ -81,6 +81,7 @@ def display_menu():
 
 
 def handle_agreement(update, context):
+    print('handle argeemenrt')
     query = update.callback_query
     query.answer()
     if query.data == 'yes':
@@ -88,18 +89,16 @@ def handle_agreement(update, context):
     return INITIAL_MENU
 
 
-def handle_product(update, context):
-    query = update.callback_query
-    _, amount, product_sku = query['data'].split('_')
-    client_id = query['from_user']['id']
-    add_product_to_cart(
-        context,
-        product_sku,
-        amount,
-        client_id,
-    )
-    query.answer(f'Добавлено {amount}кг.')
-    return HANDLE_AGREEMENT
+def list_requests(update, context):
+    if requests := fetch_free_requests():
+        buttons = []
+        for request in requests:
+            buttons.append(InlineKeyboardButton(request.title, callback_data=request.id))
+        reply_markup = InlineKeyboardMarkup([buttons])
+        context.bot.send_message(update.message.from_user.id, reply_markup=reply_markup, text='Список свободных заявок:')
+    else:
+        context.bot.send_message(update.message.from_user.id, text='Список заявок пуст!')
+    return ACCEPT_AGREEMENT
 
 
 def cancel(update, _):
@@ -211,6 +210,7 @@ def main():
                         CallbackQueryHandler(handle_agreement),
                             ],
             ACCEPT_AGREEMENT:  [
+                        CommandHandler('list', list_requests),
                         CallbackQueryHandler(handle_cart),
                           ],
             WAITING_EMAIL:  [

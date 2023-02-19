@@ -20,11 +20,24 @@ class Client(models.Model):
 
 
 class Subcontractor(models.Model):
+
+    STATUS_CHOICES = [
+        ('on_check', 'На одобрении'),
+        ('enable', 'Подтвержден'),
+        ('disable', 'Заблокирован'),
+    ]
     name = models.CharField('name', max_length=50)
     telegram_id = models.CharField('telegram id', max_length=50)
+    chat_id = models.CharField('chat id', max_length=50)
     registration_date = models.DateTimeField('date of registration', auto_now=True,)
     salary = models.IntegerField('salary', blank=True, null=True)
     is_active = models.BooleanField('is active', default=False)
+    on_check = models.BooleanField('on_check', default=False)
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default=STATUS_CHOICES[2],
+    )
 
     def __str__(self):
         return self.name

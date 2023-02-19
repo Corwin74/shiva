@@ -37,7 +37,7 @@ def start_bot():
         if is_user_client(message.from_user.id):
             bot.send_message(message.chat.id, text='Вы клиент!')
             return
-        elif is_user_subcontractor(message.from_user.id):
+        if is_user_subcontractor(message.from_user.id):
             bot.send_message(message.chat.id, text='Вы контрактор!')
             return
         button1 = types.InlineKeyboardButton(
@@ -78,8 +78,7 @@ def start_bot():
     @bot.callback_query_handler(func=lambda call: call.data == "yes_executer")
     def yes_executer(call: types.CallbackQuery):
         bot.answer_callback_query(callback_query_id=call.id)
-        print(call)
-        add_executer(call.from_user.id)
+        add_executer(call.from_user.id, call.message.chat.id)
         bot.send_message(call.message.chat.id, text="Заявка отправлена на рассмотрение")
 
     bot.infinity_polling()

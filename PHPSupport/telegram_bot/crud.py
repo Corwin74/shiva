@@ -34,3 +34,11 @@ def fetch_free_requests():
 
 def fetch_request(id):
     return Request.objects.get(id=id)
+
+
+def assign_request(user_id, request_id):
+    subcontractor = Subcontractor.objects.get(id=user_id)
+    request = Request.objects.get(id=request_id)
+    request.subcontractor = subcontractor
+    request.save()
+

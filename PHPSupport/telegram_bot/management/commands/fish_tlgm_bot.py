@@ -4,14 +4,14 @@ from environs import Env
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (CommandHandler, ConversationHandler,
                           CallbackQueryHandler, Filters, MessageHandler,
-                          Updater)
+                          Updater, StringCommandHandler, StringRegexHandler)
 
 from telegram_bot.tlgm_logger import TlgmLogsHandler
 from telegram_bot.crud import (is_user_client, is_user_subcontractor,
-    add_executer, fetch_free_requests, fetch_request)
+    add_executer, fetch_free_requests, fetch_request, assign_request)
 
 INITIAL_MENU, SPLIT_USERS, HANDLE_AGREEMENT, \
-        ACCEPT_AGREEMENT, WAITING_EMAIL = (1, 2, 3, 4, 5)
+        ACCEPT_AGREEMENT, HANDLE_APPROVE, HANDLE_REQUEST, HANDLE_CHOICE = (1, 2, 3, 4, 5, 6, 7)
 
 logger = logging.getLogger(__file__)
 
@@ -31,9 +31,11 @@ def check_user(update, context):
         return INITIAL_MENU
     if user := is_user_subcontractor(update.message.from_user.id):
         if user.status == 'enable':
-            context.bot.send_message(update.message.chat.id, text='Вы контрактор!')
+            context.bot.send_message(update.message.chat.id, text='Заявка одобрена. Добро пожаловать!')
+            return HANDLE_APPROVE
         elif user.status == 'on_check':
             context.bot.send_message(update.message.chat.id, text='Ваша заявка на рассмотрении!')
+            return ACCEPT_AGREEMENT
         elif user.status == 'disable':
             context.bot.send_message(update.message.chat.id, text='Ваш аккаунт заблокирован')
         else:
@@ -81,10 +83,18 @@ def display_menu():
 
 
 def handle_agreement(update, context):
-    print('handle argeemenrt')
     query = update.callback_query
     query.answer()
     if query.data == 'yes':
+        add_executer(
+            update.callback_query.from_user.id,
+            update.callback_query.message.chat.id,
+            update.callback_query.message.chat.username,
+        )
+        context.bot.send_message(
+            update.callback_query.from_user.id,
+            text='Заявка отправлена на рассмотрение',
+        )
         return ACCEPT_AGREEMENT
     return INITIAL_MENU
 
@@ -93,12 +103,27 @@ def list_requests(update, context):
     if requests := fetch_free_requests():
         buttons = []
         for request in requests:
-            buttons.append(InlineKeyboardButton(request.title, callback_data=request.id))
-        reply_markup = InlineKeyboardMarkup([buttons])
+            buttons.append([InlineKeyboardButton(request.title, callback_data=request.id)])
+        reply_markup = InlineKeyboardMarkup(buttons)
         context.bot.send_message(update.message.from_user.id, reply_markup=reply_markup, text='Список свободных заявок:')
     else:
         context.bot.send_message(update.message.from_user.id, text='Список заявок пуст!')
-    return ACCEPT_AGREEMENT
+    return HANDLE_REQUEST
+
+
+def display_request(update, context):
+    query = update.callback_query
+    query.answer()
+    reply_markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton('Взять заказ', callback_data=f'request-{query.data}')],
+        [InlineKeyboardButton('<< Назад', callback_data='back')],
+    ])
+    context.bot.send_message(
+        update.callback_query.from_user.id,
+        text=fetch_request(query.data).description,
+        reply_markup=reply_markup,
+    )
+    return HANDLE_CHOICE
 
 
 def cancel(update, _):
@@ -106,79 +131,25 @@ def cancel(update, _):
     return ConversationHandler.END
 
 
-def handle_cart(update, context):
+def handle_choice(update, context):
     query = update.callback_query
     query.answer()
-    client_id = query['from_user']['id']
-    if query['data'] == 'email':
-        context.bot.send_message(
-            client_id,
-            'Для оформления заказа укажите адрес электронной почты:',
-        )
-        return WAITING_EMAIL
-    if not query['data'] == 'cart':
-        _, item_id = query['data'].split('_')
-        remove_product_from_cart(
-            context,
-            client_id,
-            item_id
-        )
-    menu_buttons = []
-    message_text = ""
-    for item in get_cart_items(context, client_id):
-        menu_buttons.append(
-            [
-                InlineKeyboardButton(
-                    f'{item["name"]} - удалить из корзины',
-                    callback_data=f'delete_{item["id"]}',
-                )
-            ]
-        )
-        display_price = item["meta"]["display_price"]["with_tax"]
-        message_text += f'{item["name"]}\n'\
-            f'{display_price["unit"]["formatted"]} за кг.\n'\
-            f'В корзине {item["quantity"]} кг.'\
-            f'на сумму: {display_price["value"]["formatted"]}\n\n'
-    menu_buttons.append(
-        [InlineKeyboardButton('В меню', callback_data='back')]
-    )
-    if message_text:
-        cart_cost = get_cart_cost(context, client_id)
-        message_text += f'Общая сумма заказа: {cart_cost}\n'
-        menu_buttons.append(
-            [InlineKeyboardButton('Оформить заказ', callback_data='email')]
-        )
-    else:
-        message_text = "Корзина пуста"
-    reply_markup = InlineKeyboardMarkup(menu_buttons)
-    context.bot.send_message(
-        client_id,
-        message_text,
-        reply_markup=reply_markup,
-    )
-    query.delete_message()
-    return ACCEPT_AGREEMENT
-
-
-def handle_email(update, context):
-    message = update.message.to_dict()
-    response = create_customer(
-        context,
-        message['text'],
-        message['from']['username'],
-    )
-    email = get_customer(context, response['id'])['email']
-    update.message.reply_text(
-        f'Спасибо за заказ! Вы указали электронный адрес: {email}'
-    )
-    return ConversationHandler.END
-
-
-def wrong_email(update, _):
-    update.message.reply_text(
-        'Неправильный формат email адреса. Попробуйте еще раз')
-    return WAITING_EMAIL
-
+    if query.data == 'back':
+        if requests := fetch_free_requests():
+            buttons = []
+            for request in requests:
+                buttons.append([InlineKeyboardButton(request.title, callback_data=request.id)])
+            reply_markup = InlineKeyboardMarkup(buttons)
+            context.bot.send_message(update.callback_query.from_user.id, reply_markup=reply_markup, text='Список свободных заявок:')
+        else:
+            context.bot.send_message(update.callback_query.from_user.id, text='Список заявок пуст!')
+        return HANDLE_REQUEST
+    prefix, request_id = query.data.split('-')
+    if prefix == 'request':
+        assign_request(update.callback_query.from_user.id, request_id)
+        return HANDLE_APPROVE
+    context.bot.send_message(update.callback_query.from_user.id, text='Все пропало?')
+    
 
 def error_handler(_, context):
     logger.exception('Exception', exc_info=context.error)
@@ -204,20 +175,23 @@ def main():
             INITIAL_MENU: [
                         MessageHandler(Filters.text & ~Filters.command,
                                        display_menu),
-                      ],
+            ],
             SPLIT_USERS: [CallbackQueryHandler(split_users)],
             HANDLE_AGREEMENT: [
                         CallbackQueryHandler(handle_agreement),
-                            ],
+            ],
             ACCEPT_AGREEMENT:  [
+                        MessageHandler(Filters.text, check_user)
+            ],
+            HANDLE_APPROVE:  [
                         CommandHandler('list', list_requests),
-                        CallbackQueryHandler(handle_cart),
-                          ],
-            WAITING_EMAIL:  [
-                        MessageHandler(Filters.entity('email'), handle_email),
-                        MessageHandler(Filters.text & ~Filters.command,
-                                       wrong_email),
-                            ]
+            ],
+            HANDLE_REQUEST:  [
+                        CallbackQueryHandler(display_request)
+            ],
+            HANDLE_CHOICE:   [
+                        CallbackQueryHandler(handle_choice)
+            ]
         },
 
         fallbacks=[CommandHandler('cancel', cancel)]

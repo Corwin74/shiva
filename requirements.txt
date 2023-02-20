@@ -1,3 +1,4 @@
 pyTelegramBotAPI==4.7.1
 Django~=4.1.0
 environs[django]~=9.3.0
+python-telegram-bot~=13.0

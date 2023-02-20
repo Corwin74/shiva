@@ -37,8 +37,18 @@ def fetch_request(id):
 
 
 def assign_request(user_id, request_id):
-    subcontractor = Subcontractor.objects.get(id=user_id)
+    subcontractor = Subcontractor.objects.get(telegram_id=user_id)
     request = Request.objects.get(id=request_id)
     request.subcontractor = subcontractor
     request.save()
 
+
+def fetch_open_user_requests(user_id):
+    subcontractor = Subcontractor.objects.get(telegram_id=user_id)
+    return Request.objects.filter(subcontractor=subcontractor, status='pending')
+
+
+def close_request(user_id, request_id):
+    requset = Request.objects.get(id=request_id)
+    requset.status = 'complete'
+    requset.save()

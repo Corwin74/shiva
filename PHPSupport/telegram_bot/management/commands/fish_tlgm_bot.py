@@ -322,16 +322,18 @@ def check_status(context):
             reply_markup = InlineKeyboardMarkup(
             [
                 [
-                    InlineKeyboardButton('Посмотреть доступные заявки', callback_data='getjob'),
+                    InlineKeyboardButton('Свободные заявки', callback_data='getjob'),
+                    InlineKeyboardButton('Заявки в работе', callback_data='myjob'),
                 ],
             ])
             context.bot.send_message(
-                chat_id=context.job.context,
-                text='Добро пожаловать в сервис PHPSupport!',
+                update.message.chat.id,
+                text='Исполнитель: XXX',
                 reply_markup=reply_markup,
             )
             context.job.schedule_removal()
-
+            return HANDLE_APPROVE
+            
 
 def main():
     logging.basicConfig(

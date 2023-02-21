@@ -33,7 +33,18 @@ def check_user(update, context):
         return INITIAL_MENU
     if user := is_user_subcontractor(update.message.from_user.id):
         if user.status == 'enable':
-            context.bot.send_message(update.message.chat.id, text='Заявка одобрена. Добро пожаловать!')
+            reply_markup = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton('Свободные заявки', callback_data='getjob'),
+                    InlineKeyboardButton('Заявки в работе', callback_data='myjob'),
+                ],
+            ])
+            context.bot.send_message(
+                update.message.chat.id,
+                text='Исполнитель: XXX',
+                reply_markup=reply_markup,
+            )
             return HANDLE_APPROVE
         elif user.status == 'on_check':
             context.bot.send_message(update.message.chat.id, text='Ваша заявка на рассмотрении!')
@@ -97,42 +108,82 @@ def handle_agreement(update, context):
             update.callback_query.from_user.id,
             text='Заявка отправлена на рассмотрение',
         )
+        query.delete_message()
         context.job_queue.run_repeating(check_status, 30, context=query.message.chat.id)
         return ACCEPT_AGREEMENT
-    return INITIAL_MENU
+    query.delete_message()
+    return ConversationHandler.END
 
 
 def list_requests(update, context):
+    query = update.callback_query
+    query.answer()
     if requests := fetch_free_requests():
         buttons = []
         for request in requests:
             buttons.append([InlineKeyboardButton(request.title, callback_data=request.id)])
         reply_markup = InlineKeyboardMarkup(buttons)
-        context.bot.send_message(update.message.from_user.id, reply_markup=reply_markup, text='Список свободных заявок:')
-        # update.message.delete_message()
+        context.bot.send_message(query.from_user.id, reply_markup=reply_markup, text='Свободные заявки:')
     else:
-        context.bot.send_message(update.message.from_user.id, text='Список заявок пуст!')
+        context.bot.send_message(query.from_user.id, text='Список заявок пуст!')
+    query.delete_message()
     return HANDLE_REQUEST
 
 
 def list_requests_callback(update, context):
     query = update.callback_query
+    print(query.data)
     query.answer()
-    if requests := fetch_free_requests():
-        buttons = []
-        for request in requests:
-            buttons.append([InlineKeyboardButton(request.title, callback_data=request.id)])
-        reply_markup = InlineKeyboardMarkup(buttons)
-        context.bot.send_message(query.from_user.id, reply_markup=reply_markup, text='Список свободных заявок:')
-    else:
-        context.bot.send_message(from_user.id, text='Список заявок пуст!')
-    query.delete_message()
-    return HANDLE_REQUEST
+    if query.data == 'getjob':
+        if requests := fetch_free_requests():
+            buttons = []
+            for request in requests:
+                buttons.append([InlineKeyboardButton(request.title, callback_data=request.id)])
+            buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
+            reply_markup = InlineKeyboardMarkup(buttons)
+            context.bot.send_message(query.from_user.id, reply_markup=reply_markup, text='Свободные заявки:')
+        else:
+            buttons = []
+            buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
+            reply_markup = InlineKeyboardMarkup(buttons)
+            context.bot.send_message(query.from_user.id, text='Список заявок пуст!')
+        query.delete_message()
+        return HANDLE_REQUEST
+    if query.data == 'myjob':
+        if requests := fetch_open_user_requests(query.from_user.id):
+            buttons = []
+            for request in requests:
+                buttons.append([InlineKeyboardButton(request.title, callback_data=request.id)])
+            buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
+            reply_markup = InlineKeyboardMarkup(buttons)
+            context.bot.send_message(query.from_user.id, reply_markup=reply_markup, text='Заявки в работе:')
+        else:
+            buttons = []
+            buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
+            reply_markup = InlineKeyboardMarkup(buttons)
+            context.bot.send_message(query.from_user.id, text='Нет заявок в работе!', reply_markup=reply_markup)
+        query.delete_message()
+        return HANDLE_INWORK_REQUEST
 
 
 def display_request(update, context):
     query = update.callback_query
     query.answer()
+    if query.data == 'back':
+        reply_markup = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton('Свободные заявки', callback_data='getjob'),
+                    InlineKeyboardButton('Заявки в работе', callback_data='myjob'),
+                ],
+            ])
+        context.bot.send_message(
+                query.from_user.id,
+                text='Исполнитель: XXX',
+                reply_markup=reply_markup,
+            )
+        query.delete_message()
+        return HANDLE_APPROVE
     reply_markup = InlineKeyboardMarkup([
         [InlineKeyboardButton('Взять заказ', callback_data=f'request-{query.data}')],
         [InlineKeyboardButton('<< Назад', callback_data='back')],
@@ -159,10 +210,14 @@ def handle_choice(update, context):
             buttons = []
             for request in requests:
                 buttons.append([InlineKeyboardButton(request.title, callback_data=request.id)])
+            buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
             reply_markup = InlineKeyboardMarkup(buttons)
             context.bot.send_message(update.callback_query.from_user.id, reply_markup=reply_markup, text='Список свободных заявок:')
         else:
-            context.bot.send_message(update.callback_query.from_user.id, text='Список заявок пуст!')
+            buttons = []
+            buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
+            reply_markup = InlineKeyboardMarkup(buttons)
+            context.bot.send_message(query.from_user.id, text='Список заявок пуст!')
         query.delete_message()
         return HANDLE_REQUEST
     prefix, request_id = query.data.split('-')
@@ -179,16 +234,35 @@ def list_inwork_requests(update, context):
         buttons = []
         for request in requests:
             buttons.append([InlineKeyboardButton(request.title, callback_data=request.id)])
+        buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
         reply_markup = InlineKeyboardMarkup(buttons)
-        context.bot.send_message(update.message.from_user.id, reply_markup=reply_markup, text='Заявки в работе:')
+        context.bot.send_message(update.message.from_user.id, reply_markup=reply_markup, text='Заявки в работе!!!:')
     else:
-        context.bot.send_message(update.message.from_user.id, text='Нет заявок в работе!')
+        buttons = []
+        buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
+        reply_markup = InlineKeyboardMarkup(buttons)
+        context.bot.send_message(update.message.from_user.id, text='Нет заявок в работе!', reply_markup=reply_markup)
     return HANDLE_INWORK_REQUEST
 
 
 def handle_inwork(update, context):
     query = update.callback_query
     query.answer()
+    if query.data == 'back':
+        reply_markup = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton('Свободные заявки', callback_data='getjob'),
+                    InlineKeyboardButton('Заявки в работе', callback_data='myjob'),
+                ],
+            ])
+        context.bot.send_message(
+            query.from_user.id,
+            text='Исполнитель: XXX',
+            reply_markup=reply_markup,
+        )
+        query.delete_message()
+        return HANDLE_APPROVE
     reply_markup = InlineKeyboardMarkup([
         [InlineKeyboardButton('Дополнительная информация по заявке', callback_data=f'request-{query.data}')],
         [InlineKeyboardButton('Закрыть заявку', callback_data=f'close-{query.data}')],
@@ -211,6 +285,7 @@ def handle_inwork_choice(update, context):
             buttons = []
             for request in requests:
                 buttons.append([InlineKeyboardButton(request.title, callback_data=request.id)])
+            buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
             reply_markup = InlineKeyboardMarkup(buttons)
             context.bot.send_message(update.callback_query.from_user.id, reply_markup=reply_markup, text='Заявки в работе:')
         else:
@@ -272,7 +347,10 @@ def main():
     dispatcher = updater.dispatcher
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', check_user)],
+        entry_points=[
+            CommandHandler('start', check_user),
+            MessageHandler(Filters.text, check_user),
+            ],
 
         states={
             INITIAL_MENU: [
@@ -288,6 +366,7 @@ def main():
                         CallbackQueryHandler(list_requests_callback)
             ],
             HANDLE_APPROVE:  [
+                        CallbackQueryHandler(list_requests_callback),
                         CommandHandler('list', list_requests),
                         CommandHandler('my', list_inwork_requests),
                         

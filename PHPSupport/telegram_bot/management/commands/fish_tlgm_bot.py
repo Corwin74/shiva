@@ -292,7 +292,10 @@ def handle_inwork_choice(update, context):
             reply_markup = InlineKeyboardMarkup(buttons)
             context.bot.send_message(update.callback_query.from_user.id, reply_markup=reply_markup, text='Заявки в работе:')
         else:
-            context.bot.send_message(update.callback_query.from_user.id, text='Нет заявок в работе!')
+            buttons = []
+            buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
+            reply_markup = InlineKeyboardMarkup(buttons)
+            context.bot.send_message(update.message.from_user.id, text='Нет заявок в работе!', reply_markup=reply_markup)
         query.delete_message()
         return HANDLE_INWORK_REQUEST
     prefix, request_id = query.data.split('-')
@@ -382,7 +385,7 @@ def main():
             HANDLE_REQUEST:  [
                         CallbackQueryHandler(display_request),
                         CommandHandler('my', list_inwork_requests),
-                        CommandHandler('list', list_requests),
+                        CommandHandler('list', list_requests_callback),
             ],
             HANDLE_CHOICE:   [
                         CallbackQueryHandler(handle_choice),

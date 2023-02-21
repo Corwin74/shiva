@@ -327,7 +327,7 @@ def check_status(context):
                 ],
             ])
             context.bot.send_message(
-                update.message.chat.id,
+                context.job.context,
                 text='Исполнитель: XXX',
                 reply_markup=reply_markup,
             )

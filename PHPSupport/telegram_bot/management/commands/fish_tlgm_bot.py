@@ -134,7 +134,7 @@ def list_requests_callback(update, context):
     query = update.callback_query
     print(query.data)
     query.answer()
-    if query.data == 'getjob':
+    if query.data == 'getjob' or query.data == 'back':
         if requests := fetch_free_requests():
             buttons = []
             for request in requests:

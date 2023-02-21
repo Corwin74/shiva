@@ -146,7 +146,7 @@ def list_requests_callback(update, context):
             buttons = []
             buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
             reply_markup = InlineKeyboardMarkup(buttons)
-            context.bot.send_message(query.from_user.id, text='Список заявок пуст!')
+            context.bot.send_message(query.from_user.id, text='Список заявок пуст!', reply_markup=reply_markup)
         query.delete_message()
         return HANDLE_REQUEST
     if query.data == 'myjob':

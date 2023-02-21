@@ -301,7 +301,7 @@ def handle_inwork_choice(update, context):
         buttons = []
         buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
         reply_markup = InlineKeyboardMarkup(buttons)
-        context.bot.send_message(update.callback_query.from_user.id, text='Заявка закрыта')
+        context.bot.send_message(update.callback_query.from_user.id, text='Заявка закрыта', reply_markup=reply_markup)
         query.delete_message()
         return HANDLE_APPROVE
     if prefix == 'request':

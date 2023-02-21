@@ -97,6 +97,7 @@ def handle_agreement(update, context):
             update.callback_query.from_user.id,
             text='Заявка отправлена на рассмотрение',
         )
+        context.job_queue.run_repeating(check_status, 30, context=query.message.chat.id)
         return ACCEPT_AGREEMENT
     return INITIAL_MENU
 
@@ -111,6 +112,21 @@ def list_requests(update, context):
         # update.message.delete_message()
     else:
         context.bot.send_message(update.message.from_user.id, text='Список заявок пуст!')
+    return HANDLE_REQUEST
+
+
+def list_requests_callback(update, context):
+    query = update.callback_query
+    query.answer()
+    if requests := fetch_free_requests():
+        buttons = []
+        for request in requests:
+            buttons.append([InlineKeyboardButton(request.title, callback_data=request.id)])
+        reply_markup = InlineKeyboardMarkup(buttons)
+        context.bot.send_message(query.from_user.id, reply_markup=reply_markup, text='Список свободных заявок:')
+    else:
+        context.bot.send_message(from_user.id, text='Список заявок пуст!')
+    query.delete_message()
     return HANDLE_REQUEST
 
 
@@ -187,7 +203,6 @@ def handle_inwork(update, context):
     return HANDLE_INWORK_CHOICE
 
 
-
 def handle_inwork_choice(update, context):
     query = update.callback_query
     query.answer()
@@ -226,6 +241,23 @@ def error_handler(_, context):
     logger.exception('Exception', exc_info=context.error)
 
 
+def check_status(context):
+    if user := is_user_subcontractor(context.job.context):
+        if user.status == 'enable':
+            reply_markup = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton('Посмотреть доступные заявки', callback_data='getjob'),
+                ],
+            ])
+            context.bot.send_message(
+                chat_id=context.job.context,
+                text='Добро пожаловать в сервис PHPSupport!',
+                reply_markup=reply_markup,
+            )
+            context.job.schedule_removal()
+
+
 def main():
     logging.basicConfig(
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -252,7 +284,8 @@ def main():
                         CallbackQueryHandler(handle_agreement),
             ],
             ACCEPT_AGREEMENT:  [
-                        MessageHandler(Filters.text, check_user)
+                        MessageHandler(Filters.text, check_user),
+                        CallbackQueryHandler(list_requests_callback)
             ],
             HANDLE_APPROVE:  [
                         CommandHandler('list', list_requests),

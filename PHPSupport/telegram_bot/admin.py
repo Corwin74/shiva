@@ -57,11 +57,3 @@ class SubcontractorAdmin(admin.ModelAdmin):
         'is_active',
     )
     list_filter = ['is_active']
-
-    def response_post_save_change(self, request, obj):
-        resp = super().response_post_save_change(request, obj)
-        if obj.status == 'enable':
-            send_notification(obj.chat_id, 'Ваша заявка одобрена')
-            send_notification(obj.chat_id, '-=approve=-')
-            send_notification(obj.chat_id, '/bebe')
-        return resp

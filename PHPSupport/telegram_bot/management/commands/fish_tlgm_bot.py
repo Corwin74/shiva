@@ -328,7 +328,7 @@ def check_status(context):
             ])
             context.bot.send_message(
                 context.job.context,
-                text='Исполнитель: XXX',
+                text='Ваща заявка одобрена!',
                 reply_markup=reply_markup,
             )
             context.job.schedule_removal()

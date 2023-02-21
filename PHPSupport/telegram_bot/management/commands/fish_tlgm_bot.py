@@ -298,6 +298,9 @@ def handle_inwork_choice(update, context):
     prefix, request_id = query.data.split('-')
     if prefix == 'close':
         close_request(update.callback_query.from_user.id, request_id)
+        buttons = []
+        buttons.append([InlineKeyboardButton("<< Назад", callback_data='back')])
+        reply_markup = InlineKeyboardMarkup(buttons)
         context.bot.send_message(update.callback_query.from_user.id, text='Заявка закрыта')
         query.delete_message()
         return HANDLE_APPROVE
